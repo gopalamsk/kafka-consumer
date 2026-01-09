@@ -1,0 +1,46 @@
+@Service
+@Slf4j
+public class MessageConverter {
+
+    private final JAXBContext jaxbContext;
+    private final ObjectMapper objectMapper;
+    private final XMLInputFactory xmlInputFactory;
+
+    public MessageConverter(
+            JAXBContext jaxbContext,
+            ObjectMapper objectMapper,
+            XMLInputFactory xmlInputFactory
+    ) {
+        this.jaxbContext = jaxbContext;
+        this.objectMapper = objectMapper;
+        this.xmlInputFactory = xmlInputFactory;
+    }
+
+    public XFRqst unmarshal(String xml) {
+        try (InputStream stream =
+                     new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8))) {
+
+            XMLStreamReader reader =
+                    xmlInputFactory.createXMLStreamReader(stream);
+
+            JAXBElement<XFRqst> element =
+                    jaxbContext.createUnmarshaller()
+                               .unmarshal(reader, XFRqst.class);
+
+            return element.getValue();
+
+        } catch (Exception e) {
+            log.error("Failed to unmarshal XML", e);
+            throw new MappingException("XML unmarshalling failed", e);
+        }
+    }
+
+    public StatusMessageRequest jsonToObject(String json) {
+        try {
+            return objectMapper.readValue(json, StatusMessageRequest.class);
+        } catch (JsonProcessingException e) {
+            log.error("JSON deserialization failed", e);
+            throw new MappingException("Invalid JSON payload", e);
+        }
+    }
+}
