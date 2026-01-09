@@ -1,55 +1,110 @@
-package com.bns.fsl.emt.incoming.event.consumer;
+package com.bns.fsl.emt.incoming.event.processor;
 
-import com.bns.fsl.emt.incoming.event.aspect.LogExecutionTime;
-import com.bns.fsl.emt.incoming.event.model.FSLIncomingPaymentRequest;
-import com.bns.fsl.emt.incoming.event.processor.AciProcessor;
-import com.bns.fsl.emt.incoming.event.util.CommonValidator;
-import com.bns.fsl.emt.incoming.event.util.MessageConverter;
+import com.bns.fsl.domain.emt.FslIncomingPaymentEventsRequest;
+import com.bns.fsl.emt.incoming.event.util.CommonUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.MDC;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PayhubEventKafkaListener implements KafkaListenerInterface {
+public class PayhubEventKafkaListener {
 
-    private final AciProcessor processor;
-    private final CommonValidator commonValidator;
-    private final MessageConverter messageConverter;
+    private final PayhubEventProcessor payhubEventProcessor;
+    private final ObjectMapper objectMapper;        // Standard Spring-managed ObjectMapper
+    private final ObservationRegistry observationRegistry; // Micrometer Observation (replaces custom Aspect)
 
-    @Override
-    @LogExecutionTime // Logs "Key-TRX123"
-    public void consumePayhubEventListener(ConsumerRecord<String, String> record, Acknowledgment ack) {
-        var payload = record.value();
+    // Key used in logs: [requestId=...]
+    private static final String MDC_REQUEST_ID = "requestId";
 
+    @KafkaListener(
+        topics = "${app.kafka.topics.payhub-event}", 
+        groupId = "${app.kafka.consumer.group-id}",
+        containerFactory = "payhubContainerFactory" // Must be configured for AckMode.MANUAL_IMMEDIATE
+    )
+    public void consumePayhubEvent(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+        String payload = record.value();
+
+        // 1. Guard Clause: Skip empty messages immediately
         if (payload == null || payload.isBlank()) {
-            log.warn("Skipping invalid empty message. Topic: {}", record.topic());
-            ack.acknowledge();
+            log.warn("Skipping invalid empty message. Topic: {}, Partition: {}, Offset: {}", 
+                     record.topic(), record.partition(), record.offset());
+            acknowledgment.acknowledge();
             return;
         }
 
-        try {
-            // 1. Convert to POJO
-            var requestPojo = messageConverter.toPojo(payload);
+        // 2. Observability Block
+        // This handles metrics (timer), tracing (spanId/traceId), and error counting automatically.
+        Observation.createNotStarted("kafka.consume.payhub", observationRegistry)
+                .lowCardinalityKeyValue("topic", record.topic())
+                .observe(() -> {
+                    try {
+                        processMessage(payload);
+                        acknowledgment.acknowledge(); // ✅ Success: Commit offset
+                    } catch (JsonProcessingException e) {
+                        // 🛑 FATAL ERROR (Poison Pill)
+                        // Malformed JSON cannot be retried. We MUST acknowledge to skip it 
+                        // and unblock the partition.
+                        log.error("POISON PILL DETECTED: Skipping invalid JSON payload. Offset: {}", record.offset(), e);
+                        acknowledgment.acknowledge(); 
+                    } catch (Exception e) {
+                        // ⚠️ RETRYABLE ERROR (DB down, Network, etc.)
+                        // Throwing exception triggers Spring Kafka's Backoff/Retry policy.
+                        log.error("Transient error processing Payhub event. Retrying...", e);
+                        throw new RuntimeException("Retryable error processing Kafka message", e); 
+                    }
+                });
+    }
 
-            if (commonValidator.isValidMessage(requestPojo)) {
-                
-                // 2. Extract ID (Single Point of Extraction)
-                String requestId = requestPojo.payload().payment().requestId();
+    private void processMessage(String payload) throws JsonProcessingException {
+        // 3. Deserialize using the global ObjectMapper
+        FslIncomingPaymentEventsRequest request = objectMapper.readValue(payload, FslIncomingPaymentEventsRequest.class);
 
-                // 3. Process (Pass ID explicitly)
-                processor.process(payload, requestPojo, requestId, record.key());
-                
-                ack.acknowledge();
-            } else {
-                log.error("Invalid Schema. Key: {}", record.key());
-                ack.acknowledge(); // Commit poison pill
-            }
-        } catch (Exception e) {
-            throw e; // Triggers Retry
+        // 4. Extract Request ID safely
+        String requestId = CommonUtil.extractRequestId(request).orElse("UNKNOWN");
+        
+        // 5. MDC Contextual Logging
+        // Puts requestId into MDC. 'try-with-resources' ensures it is removed automatically 
+        // when the block finishes, preventing thread-local leaks.
+        try (var ignored = MDC.putCloseable(MDC_REQUEST_ID, requestId)) {
+            log.info("Processing Payhub event started.");
+            
+            // Invoke Business Logic
+            payhubEventProcessor.processPayhubEvent(request, requestId);
+            
+            log.info("Processing Payhub event completed successfully.");
         }
+    }
+}
+
+
+
+
+package com.bns.fsl.emt.incoming.event.util;
+
+import com.bns.fsl.domain.emt.FslIncomingPaymentEventsRequest;
+// ... (Add other domain imports here: Payload, Paymentblock)
+import java.util.Optional;
+
+public final class CommonUtil {
+    
+    private CommonUtil() {
+        // Prevent instantiation
+    }
+
+    public static Optional<String> extractRequestId(FslIncomingPaymentEventsRequest request) {
+        return Optional.ofNullable(request)
+                .map(FslIncomingPaymentEventsRequest::getPayload)
+                .map(Payload::getPaymentblock) // Ensure getPaymentblock() matches your actual getter name
+                .map(Paymentblock::getRequestId);
     }
 }
