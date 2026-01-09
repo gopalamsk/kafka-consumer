@@ -1,0 +1,55 @@
+package com.bns.fsl.emt.incoming.event.consumer;
+
+import com.bns.fsl.emt.incoming.event.aspect.LogExecutionTime;
+import com.bns.fsl.emt.incoming.event.model.FSLIncomingPaymentRequest;
+import com.bns.fsl.emt.incoming.event.processor.AciProcessor;
+import com.bns.fsl.emt.incoming.event.util.CommonValidator;
+import com.bns.fsl.emt.incoming.event.util.MessageConverter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.stereotype.Component;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class PayhubEventKafkaListener implements KafkaListenerInterface {
+
+    private final AciProcessor processor;
+    private final CommonValidator commonValidator;
+    private final MessageConverter messageConverter;
+
+    @Override
+    @LogExecutionTime // Logs "Key-TRX123"
+    public void consumePayhubEventListener(ConsumerRecord<String, String> record, Acknowledgment ack) {
+        var payload = record.value();
+
+        if (payload == null || payload.isBlank()) {
+            log.warn("Skipping invalid empty message. Topic: {}", record.topic());
+            ack.acknowledge();
+            return;
+        }
+
+        try {
+            // 1. Convert to POJO
+            var requestPojo = messageConverter.toPojo(payload);
+
+            if (commonValidator.isValidMessage(requestPojo)) {
+                
+                // 2. Extract ID (Single Point of Extraction)
+                String requestId = requestPojo.payload().payment().requestId();
+
+                // 3. Process (Pass ID explicitly)
+                processor.process(payload, requestPojo, requestId, record.key());
+                
+                ack.acknowledge();
+            } else {
+                log.error("Invalid Schema. Key: {}", record.key());
+                ack.acknowledge(); // Commit poison pill
+            }
+        } catch (Exception e) {
+            throw e; // Triggers Retry
+        }
+    }
+}
