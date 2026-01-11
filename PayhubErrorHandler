@@ -1,0 +1,52 @@
+package com.bank.phg.infrastructure.config;
+
+import com.bank.phg.domain.exception.BusinessFatalException;
+import com.bank.phg.domain.exception.InfrastructureRetryableException;
+import com.bank.phg.infrastructure.interceptor.MetadataInterceptor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.BackOff;
+import org.springframework.util.backoff.FixedBackOff;
+import org.springframework.stereotype.Component;
+
+@Slf4j
+@Component
+public class PayhubErrorHandler extends DefaultErrorHandler {
+
+    public PayhubErrorHandler() {
+        // Step 1: Set the default recovery behavior (Limit to 2 retries then skip)
+        super(new FixedBackOff(2000L, 2L)); 
+        
+        // Step 2: Configure the "Skip" logic when retries are exhausted
+        this.setRecoverer((record, exception) -> {
+            String requestId = MDC.get(MetadataInterceptor.PAYHUB_MDC_KEY);
+            log.error("RETRIES EXHAUSTED for PayhubRequestid: {}. Skipping offset: {}", 
+                      requestId, record.offset());
+        });
+
+        // Step 3: Ensure the offset is committed after the skip
+        this.setCommitRecovered(true);
+
+        // Step 4: Classify exceptions
+        this.addRetryableExceptions(InfrastructureRetryableException.class);
+        this.addNotRetryableExceptions(BusinessFatalException.class);
+    }
+
+    @Override
+    public BackOff getBackOff(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record, Exception ex) {
+        // Step 5: Override BackOff for Infrastructure failures to retry indefinitely
+        if (isInfrastructureFailure(ex)) {
+            log.warn("Infrastructure failure detected. Retrying indefinitely (5s interval)...");
+            return new FixedBackOff(5000L, FixedBackOff.UNLIMITED_ATTEMPTS);
+        }
+        return super.getBackOff(record, ex);
+    }
+
+    private boolean isInfrastructureFailure(Exception ex) {
+        Throwable cause = ex.getCause();
+        return ex instanceof InfrastructureRetryableException || 
+               cause instanceof InfrastructureRetryableException ||
+               ex instanceof org.springframework.jms.JmsException;
+    }
+}
