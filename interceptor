@@ -1,0 +1,55 @@
+package com.bank.phg.infrastructure.interceptor;
+
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.MDC;
+import org.springframework.kafka.listener.RecordInterceptor;
+import org.springframework.stereotype.Component;
+
+@Component
+public class MetadataInterceptor implements RecordInterceptor<String, String> {
+    private static final JsonFactory FACTORY = new JsonFactory();
+    
+    // Architect's specified MDC name
+    public static final String PAYHUB_MDC_KEY = "PayhubRequestid";
+
+    @Override
+    public ConsumerRecord<String, String> intercept(ConsumerRecord<String, String> record) {
+        String requestId = "UNKNOWN";
+        if (record.value() != null) {
+            try (JsonParser parser = FACTORY.createParser(record.value())) {
+                // Streaming path traversal: payload -> paymentblock -> payment -> request_id
+                if (findPath(parser, "payload", "paymentblock", "payment", "request_id")) {
+                    parser.nextToken();
+                    requestId = parser.getText();
+                }
+            } catch (Exception e) {
+                requestId = "PARSE-ERROR";
+            }
+        }
+        MDC.put(PAYHUB_MDC_KEY, requestId);
+        return record;
+    }
+
+    private boolean findPath(JsonParser parser, String... fields) throws Exception {
+        for (String field : fields) {
+            boolean found = false;
+            while (parser.nextToken() != null) {
+                if (JsonToken.FIELD_NAME.equals(parser.getCurrentToken()) && 
+                    field.equals(parser.getCurrentName())) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void afterRecord(ConsumerRecord<String, String> record, Exception ex) {
+        MDC.remove(PAYHUB_MDC_KEY);
+    }
+}
