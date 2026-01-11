@@ -1,0 +1,40 @@
+package com.bank.phg.service;
+
+import com.bank.phg.domain.exception.BusinessFatalException;
+import com.bank.phg.domain.exception.InfrastructureRetryableException;
+import com.bank.phg.infrastructure.interceptor.MetadataInterceptor;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.MDC;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class PayhubEventProcessor {
+
+    private final MapperFactory mapperFactory;
+    private final AciGatewayDao aciDao;
+    private final AuditDao auditDao;
+
+    public void processPayhubEvent(FslIncomingPaymentEventsRequest request, String rawPayload) {
+        String requestId = MDC.get(MetadataInterceptor.PAYHUB_MDC_KEY);
+
+        try {
+            // Audit logic
+            auditDao.publishAudit("FOD_INCOMING_RAW", requestId, rawPayload);
+            
+            // Mapping logic
+            var mapper = mapperFactory.resolve(request);
+            var aciRequest = mapper.mapToAci(request);
+
+            // MQ logic
+            aciDao.sendToAci(aciRequest);
+
+        } catch (org.springframework.jms.JmsException | org.springframework.kafka.KafkaException e) {
+            // Connectivity issue: Signal INDEFINITE retry
+            throw new InfrastructureRetryableException("External system down, retrying indefinitely", e);
+        } catch (Exception e) {
+            // Mapping or data issue: Signal 2-retry limit then skip
+            throw new BusinessFatalException("Data/Mapping error, will skip after retries: " + e.getMessage());
+        }
+    }
+}
