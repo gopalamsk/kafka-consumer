@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "event_name": "Retail-Receive-EMT",
+    "event_action": "RECEIVE",
+    "country": "CA",
+    "source_id": "MOBILE_APP",
+    "origination_timestamp": "2026-01-10T12:00:00Z"
+  },
+  "payload": {
+    "fraud_case_id": "FRAUD12345",
+    "paymentblock": {
+      "request_id": "REQ-RET-10001",
+      "cust_id": "CUST001",
+      "cust_type": "RETAIL",
+      "payment": {
+        "payment_type": "EMT",
+        "credit_debit_indicator": "D",
+        "instructed_amount": {
+          "amount": 150.75,
+          "currency": "CAD"
+        },
+        "debtor": {
+          "identification": "DEBTOR001",
+          "name": "John Doe"
+        },
+        "creditor": {
+          "identification": "CRED001",
+          "name": "Jane Smith"
+        }
+      }
+    }
+  }
+}
