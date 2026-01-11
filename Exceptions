@@ -1,30 +1,27 @@
-package com.bank.phg.exception;
-
-import lombok.experimental.StandardException;
-
-/**
- * Exception thrown for non-recoverable business or data errors (e.g., Mapping errors, 
- * Validation failures). Triggers limited retries then skips the record.
- */
-@StandardException
-public class BusinessFatalException extends RuntimeException {
-    // Generated constructors follow standard Java Exception patterns via Lombok
-}
-
-
 package com.bank.phg.domain.exception;
 
 import lombok.experimental.StandardException;
 
 /**
- * Exception thrown for infrastructure-related failures (e.g., IBM MQ downtime, 
- * Kafka connectivity). Triggers indefinite retries in the PayhubErrorHandler.
+ * Indicates a transient infrastructure failure.
+ * Safe to retry (Kafka, MQ, network, downstream).
  */
 @StandardException
 public class InfrastructureRetryableException extends RuntimeException {
-    // Lombok @StandardException generates:
-    // 1. public InfrastructureRetryableException()
-    // 2. public InfrastructureRetryableException(String message)
-    // 3. public InfrastructureRetryableException(String message, Throwable cause)
-    // 4. public InfrastructureRetryableException(Throwable cause)
+}
+
+/**
+ * Indicates a non-recoverable business rule violation.
+ * Message should be acknowledged and dropped.
+ */
+@StandardException
+public class BusinessFatalException extends RuntimeException {
+}
+
+/**
+ * Indicates invalid or unmappable input data.
+ * Non-retryable.
+ */
+@StandardException
+public class MappingException extends RuntimeException {
 }
