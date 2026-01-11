@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "event_name": "Commercial-Receive-EMT",
+    "event_action": "RECEIVE",
+    "country": "CA",
+    "source_id": "CORP_PORTAL",
+    "origination_timestamp": "2026-01-10T12:05:00Z"
+  },
+  "payload": {
+    "fraud_case_id": "FRAUD98765",
+    "paymentblock": {
+      "request_id": "REQ-COM-90001",
+      "cust_id": "CORP1001",
+      "cust_type": "COMMERCIAL",
+      "payment": {
+        "payment_type": "EMT",
+        "credit_debit_indicator": "C",
+        "instructed_amount": {
+          "amount": 10000.00,
+          "currency": "CAD"
+        },
+        "debtor": {
+          "identification": "CORP-DEBTOR",
+          "name": "ABC Corporation"
+        },
+        "creditor": {
+          "identification": "VENDOR-01",
+          "name": "XYZ Services Ltd"
+        }
+      }
+    }
+  }
+}
