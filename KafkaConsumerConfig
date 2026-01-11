@@ -1,0 +1,38 @@
+package com.bank.phg.infrastructure.config;
+
+import com.bank.phg.infrastructure.interceptor.MetadataInterceptor;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.ConsumerFactory;
+import java.util.concurrent.Executors;
+
+@Configuration
+@RequiredArgsConstructor
+public class KafkaConsumerConfig {
+
+    private final MetadataInterceptor metadataInterceptor;
+    private final PayhubErrorHandler payhubErrorHandler; // Your custom handler
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
+            ConsumerFactory<String, String> consumerFactory) {
+        
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
+        factory.setConsumerFactory(consumerFactory);
+        
+        // Inject the Streaming MDC Interceptor
+        factory.setRecordInterceptor(metadataInterceptor);
+
+        // Inject the Custom Common Error Handler
+        factory.setCommonErrorHandler(payhubErrorHandler);
+
+        // PCF Optimization: Java 21 Virtual Threads
+        factory.getContainerProperties().setListenerTaskExecutor(
+            new org.springframework.core.task.SimpleAsyncTaskExecutor(
+                Executors.newVirtualThreadPerTaskExecutor().toString()));
+
+        return factory;
+    }
+}
