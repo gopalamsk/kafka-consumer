@@ -1,0 +1,31 @@
+package com.bank.phg.application.mapper;
+
+import com.bns.fsl.domain.emt.FslIncomingPaymentEventsRequest;
+import com.bank.phg.domain.exception.MappingException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+import java.util.Optional;
+
+@Component
+@RequiredArgsConstructor
+public class MapperFactory {
+
+    private final CommercialEventAciMapper commercialMapper;
+    private final RetailEventAciMapper retailMapper;
+
+    private static final String COMMERCIAL_EVENT = "Commercial-Receive-EMT";
+    private static final String RETAIL_EVENT = "Retail-Receive-EMT";
+
+    public EventAciMapper resolve(FslIncomingPaymentEventsRequest request) {
+        var eventName = Optional.ofNullable(request.getMetadata())
+                .map(m -> m.getEventName())
+                .orElseThrow(() -> new MappingException("Missing event_name in metadata"));
+
+        return switch (eventName) {
+            case COMMERCIAL_EVENT -> commercialMapper;
+            case RETAIL_EVENT     -> retailMapper;
+            case null             -> throw new MappingException("event_name is null");
+            default               -> throw new MappingException("Unsupported event: " + eventName);
+        };
+    }
+}
