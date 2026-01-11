@@ -1,0 +1,28 @@
+package com.bank.phg.api;
+
+import com.bns.fsl.domain.emt.FslIncomingPaymentEventsRequest;
+import com.bns.fsl.emt.incoming.event.processor.PayhubEventProcessor;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/payhub")
+@RequiredArgsConstructor
+public class PayhubTestController {
+
+    private final PayhubEventProcessor payhubEventProcessor;
+
+    @PostMapping("/process")
+    public ResponseEntity<String> processPayhubEvent(
+            @RequestBody FslIncomingPaymentEventsRequest request) {
+
+        log.info("REST request received for Payhub processing");
+
+        payhubEventProcessor.processPayhubEvent(request);
+
+        return ResponseEntity.ok("Payhub event processed successfully");
+    }
+}
