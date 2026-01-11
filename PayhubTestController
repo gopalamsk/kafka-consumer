@@ -4,6 +4,7 @@ import com.bns.fsl.domain.emt.FslIncomingPaymentEventsRequest;
 import com.bns.fsl.emt.incoming.event.processor.PayhubEventProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/payhub")
 @RequiredArgsConstructor
+@Profile({ "local", "ist", "uat" })
 public class PayhubTestController {
 
     private final PayhubEventProcessor payhubEventProcessor;
@@ -19,7 +21,7 @@ public class PayhubTestController {
     public ResponseEntity<String> processPayhubEvent(
             @RequestBody FslIncomingPaymentEventsRequest request) {
 
-        log.info("REST request received for Payhub processing");
+        log.info("Test API invoked for Payhub event processing");
 
         payhubEventProcessor.processPayhubEvent(request);
 
