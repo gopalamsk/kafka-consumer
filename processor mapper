@@ -1,0 +1,55 @@
+@Service
+@RequiredArgsConstructor
+public class PayhubEventProcessor {
+
+    private final MapperFactory mapperFactory;
+    private final AciMqProducer aciMqProducer;
+    private final FodAuditPublisher fodAuditPublisher;
+
+    @LogExecutionTime
+    public void processPayhubEvent(FslIncomingPaymentEventsRequest request) {
+
+        // Audit IN
+        fodAuditPublisher.publishIncoming(request);
+
+        // Resolve mapper
+        EventAciMapper mapper = mapperFactory.resolve(request);
+
+        // Map to ACI
+        XFRqst aciRequest = mapper.map(request);
+
+        // Send to MQ
+        aciMqProducer.send(aciRequest);
+
+        // Audit OUT
+        fodAuditPublisher.publishOutgoing(request, aciRequest);
+    }
+}
+
+
+@Component
+@RequiredArgsConstructor
+public class MapperFactory {
+
+    private final CommercialEventAciMapper commercialMapper;
+    private final RetailEventAciMapper retailMapper;
+
+    // Defined constants for better maintainability
+    private static final String COMMERCIAL_EVENT = "Commercial-Receive-EMT";
+    private static final String RETAIL_EVENT = "Retail-Receive-EMT";
+
+    public EventAciMapper resolve(FslIncomingPaymentEventsRequest request) {
+        // Extracting eventName with a simple null check or Optional
+        var eventName = Optional.ofNullable(request.getMetadata())
+                .map(FslIncomingPaymentEventsRequest.Metadata::getEventName)
+                .orElseThrow(() -> new MappingException("Missing metadata.event_name"));
+
+        return switch (eventName) {
+            case COMMERCIAL_EVENT -> commercialMapper;
+            case RETAIL_EVENT     -> retailMapper;
+            // JDK 21 allows 'null' as a case label if you want to handle it inside the switch
+            case null             -> throw new MappingException("event_name cannot be null");
+            default               -> throw new MappingException("Unsupported event_name: " + eventName);
+        };
+    }
+}XASQWZ
