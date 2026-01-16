@@ -1,0 +1,126 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+  application:
+    name: fsl-emt-incoming-event-consumer
+  main:
+    allow-bean-definition-overriding: true
+  mvc:
+    pathmatch:
+      matching-strategy: ANT_PATH_MATCHER
+
+  kafka:
+    # Bootstrap servers are defined in application-uat.yml / application-ist.yml
+    security:
+      protocol: SASL_SSL
+    properties:
+      schema:
+        registry:
+          # Registry URL is defined in application-uat.yml / application-ist.yml
+          ssl:
+            keystore:
+              location: base64EncodedJks:${SSL_KEYSTORE_LOCATION}
+              password: base64Encoded:${SSL_KEYSTORE_PASSWORD}
+            truststore:
+              location: base64EncodedJks:${SSL_TRUSTSTORE_LOCATION}
+              password: base64Encoded:${SSL_TRUSTSTORE_PASSWORD}
+    consumer:
+      topic-name: ${SPRING_PROFILES_ACTIVE}-bfq4-rtr-incoming-pay-to-fsl
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      group-id: ${SPRING_PROFILES_ACTIVE}-bjhl-fsl-pfm-emt-incoming-cgrp
+      auto-offset-reset: latest
+      properties:
+        spring.json.trusted.packages: '*'
+        spring:
+          deserializer:
+            key:
+              delegate:
+                class: org.apache.kafka.common.serialization.StringDeserializer
+            value:
+              delegate:
+                # Active: StringDeserializer (for testing raw strings)
+                class: org.apache.kafka.common.serialization.StringDeserializer
+                # TODO: Future use - Switch to JsonDeserializer when ready
+                # class: org.springframework.kafka.support.serializer.JsonDeserializer
+        json:
+          value:
+            type: com.bns.fsl.domain.FslIncomingPaymentEventsRequest
+          fail:
+            invalid:
+              schemas: true
+        security:
+          protocol: SASL_SSL
+        sasl:
+          mechanism: PLAIN
+          jaas:
+            config: org.apache.kafka.common.security.plain.PlainLoginModule required username='${BJHL_FSL_PFM_CONSUMER_SA_KEY}' password='${BJHL_FSL_PFM_CONSUMER_SA_PASSWORD}';
+
+  jms:
+    cache:
+      enabled: true
+
+fsl-emt:
+  tracing:
+    exclude-paths:
+      - "/actuator"
+      - "/swagger-ui"
+      - "/swagger-resources"
+      - "/v3/api-docs"
+
+logging:
+  format: JSON
+  level:
+    root: info
+
+management:
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: 'FSL PFM EMT INCOMING EVENT CONSUMER'
+    type: Spring Boot Consumer
+
+mq:
+  aci:
+    nrt:
+      host: 10.90.224.145
+      port: 4570
+      channel: PRMFSLI1.FSL.CHOUT
+      queue-manager: PRMFSLI1
+      user: ZnNsc3J2Y2k=
+      password:
+      queue: PRMNRT_TOPRM
+      ssl-enabled: true
+
+audit:
+  enable: false
+
+security:
+  ssl:
+    enabled: true
+    keys:
+      store: ${SSL_KEYSTORE_LOCATION}
+      password: ${SSL_KEYSTORE_PASSWORD}
+      algorithm: JKS
+    trust:
+      store: ${SSL_KEYSTORE_LOCATION}
+      password: ${SSL_KEYSTORE_PASSWORD}
+      algorithm: JKS
