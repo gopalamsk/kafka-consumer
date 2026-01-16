@@ -1,0 +1,28 @@
+spring:
+  kafka:
+    bootstrap-servers: lkc-1nyyv3.dom0g022kw6.northamerica-northeast2.gcp.confluent.cloud:9092
+    properties:
+      schema:
+        registry:
+          url: https://lvappi02209.cloud.bns:8081
+
+logging:
+  level: 
+    com.zaxxer.hikari: INFO 
+    org.springframework.security: INFO
+    org.springframework.kafka: INFO
+    org.apache.kafka: INFO
+    com.bns.fsl.pfm: TRACE
+    com.ibm.mq.spring.boot: TRACE
+
+mq:
+  aci:
+    nrt:
+      host: prmqacipayhubu.bns
+      port: 4583
+      channel: PRMACI.FSL.CH
+      queue-manager: PH_ACI
+      user: ${CDP_SECRET_ACI_MQ_USER}
+      password: ${CDP_SECRET_ACI_MQ_PASSWORD}
+      queue: prmnrt_payhub_toprm2
+      ssl-enabled: true
