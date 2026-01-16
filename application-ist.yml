@@ -1,0 +1,30 @@
+spring:
+  kafka:
+    # TODO: Replace with IST Broker URL
+    bootstrap-servers: lkc-ist-cluster.northamerica-northeast2.gcp.confluent.cloud:9092 
+    properties:
+      schema:
+        registry:
+          # TODO: Replace with IST Schema Registry URL
+          url: https://lvappi-ist.cloud.bns:8081 
+
+logging:
+  level:
+    root: INFO
+    com.zaxxer.hikari: INFO
+    org.springframework.security: DEBUG
+    org.springframework.kafka: DEBUG
+    com.bns.fsl.pfm: DEBUG
+    com.ibm.mq.spring.boot: DEBUG
+
+mq:
+  aci:
+    nrt:
+      host: prmqacipayhubi.bns
+      port: 4583
+      channel: PRMACI.FSL.IST.CH
+      queue-manager: PH_ACI_IST
+      user: ${CDP_SECRET_ACI_MQ_USER_IST}
+      password: ${CDP_SECRET_ACI_MQ_PASSWORD_IST}
+      queue: prmnrt_payhub_toprm2_ist
+      ssl-enabled: true
