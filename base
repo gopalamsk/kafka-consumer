@@ -43,6 +43,34 @@ public interface BaseMapper {
             .orElse(null));
   }
 
+@Named("getDebtorFullAddress")
+  default String getDebtorFullAddress(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(payment.getUltimateDebtor(), payment.getDebtor(), addr -> 
+        joinNonEmpty(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
+  }
+
+  @Named("getDebtorCityStateZip")
+  default String getDebtorCityStateZip(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(payment.getUltimateDebtor(), payment.getDebtor(), addr -> 
+        joinNonEmpty(" ", addr.getCity(), addr.getStateProvince(), addr.getPostalCode(), addr.getCountryCode()));
+  }
+
+  @Named("getCreditorFullAddress")
+  default String getCreditorFullAddress(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(payment.getUltimateCreditor(), payment.getCreditor(), addr -> 
+        joinNonEmpty(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
+  }
+
+  @Named("getCreditorCityStateZip")
+  default String getCreditorCityStateZip(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(payment.getUltimateCreditor(), payment.getCreditor(), addr -> 
+        joinNonEmpty(" ", addr.getCity(), addr.getStateProvince(), addr.getPostalCode(), addr.getCountryCode()));
+  }
+
 @Named("getInstructionForCreditorAgent")
   default String getInstructionForCreditorAgent(List<InstructionForCreditorAgent> sourceList) {
     if (sourceList == null || sourceList.isEmpty()) {
