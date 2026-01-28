@@ -30,6 +30,48 @@ public interface BaseMapper {
   /**
    * Resolves email from the first contact in the list.
    * Path: Party -> List<Contact> (get 0) -> Email -> EmailId
+
+
+import java.util.function.Function;
+
+// ... inside BaseMapper ...
+
+  /**
+   * Method 1: The Main Entry Point
+   * Concise and readable. It just lists the fields you want to map.
+   */
+  @Named("getFraudScores")
+  default String getFraudScores(SupplementaryScores scores) {
+    if (scores == null) return null;
+
+    return joinFields(" | ",
+        formatScoring("additionalProp1", scores.getAdditionalProp1(), AdditionalProp1::getScore, AdditionalProp1::getReasonCodes),
+        formatScoring("additionalProp2", scores.getAdditionalProp2(), AdditionalProp2::getScore, AdditionalProp2::getReasonCodes),
+        formatScoring("additionalProp3", scores.getAdditionalProp3(), AdditionalProp3::getScore, AdditionalProp3::getReasonCodes)
+    );
+  }
+
+  /**
+   * Method 2: The "Do It All" Helper
+   * Handles null checks, extraction, and text formatting in one block.
+   */
+  default <T> String formatScoring(String label, T obj, Function<T, String> scoreFunc, Function<T, String> reasonFunc) {
+    // 1. Safety Check: If the property object (e.g. AdditionalProp1) is null, stop immediately.
+    if (obj == null) return null;
+
+    // 2. Extract Data
+    String score = scoreFunc.apply(obj);
+    String reason = reasonFunc.apply(obj);
+
+    // 3. Format Strings (Only add "Score:" prefix if value exists)
+    String scoreStr = (score != null && !score.isBlank()) ? "Score:" + score : null;
+    String reasonStr = (reason != null && !reason.isBlank()) ? "Reason:" + reason : null;
+
+    // 4. Join: If both score and reason are missing, this returns null (hiding the label).
+    if (scoreStr == null && reasonStr == null) return null;
+
+    return joinFields(" ", label, scoreStr, reasonStr);
+  }
    */
   @Named("getCreditorEmailId")
   default String getCreditorEmailId(Payment payment) {
