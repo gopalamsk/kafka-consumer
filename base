@@ -1,0 +1,86 @@
+import org.mapstruct.Named;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
+
+public interface BaseMapper {
+
+    /**
+     * Resolves a string field, preferring ultimate over normal.
+     * Checks for nulls and blank strings to ensure valid data is returned.
+     */
+    default <P> String resolvePreferredString(P ultimate, P normal, Function<P, String> extractor) {
+        return Optional.ofNullable(ultimate)
+                .map(extractor)
+                .filter(s -> !s.isBlank())
+                .orElseGet(() -> Optional.ofNullable(normal)
+                        .map(extractor)
+                        .filter(s -> !s.isBlank())
+                        .orElse(null));
+    }
+
+    /**
+     * Safely retrieves the first address from a party's address list.
+     */
+    default Address firstAddress(Party p) {
+        return Optional.ofNullable(p)
+                .map(Party::getAddresses)
+                .filter(list -> !list.isEmpty())
+                .map(list -> list.get(0))
+                .orElse(null);
+    }
+
+    /**
+     * Resolves an address field by applying the preferred string logic to the 
+     * first address found in either the ultimate or normal party.
+     */
+    default String resolveAddressField(Party ultimate, Party normal, Function<Address, String> fieldExtractor) {
+        return resolvePreferredString(
+                firstAddress(ultimate),
+                firstAddress(normal),
+                fieldExtractor
+        );
+    }
+
+    // --- MapStruct Named Mappings ---
+
+    @Named("resolveDebtorCountryCode")
+    default String resolveDebtorCountryCode(Payment payment) {
+        if (payment == null) return null;
+        return resolveAddressField(
+                payment.getUltimateDebtor(),
+                payment.getDebtor(),
+                Address::getCountryCode
+        );
+    }
+
+    @Named("resolveCreditorCountryCode")
+    default String resolveCreditorCountryCode(Payment payment) {
+        if (payment == null) return null;
+        return resolveAddressField(
+                payment.getUltimateCreditor(),
+                payment.getCreditor(),
+                Address::getCountryCode
+        );
+    }
+
+    @Named("resolveCreditorPostalCode")
+    default String resolveCreditorPostalCode(Payment payment) {
+        if (payment == null) return null;
+        return resolveAddressField(
+                payment.getUltimateCreditor(),
+                payment.getCreditor(),
+                Address::getPostalCode
+        );
+    }
+
+    @Named("resolveCreditorName")
+    default String resolveCreditorName(Payment payment) {
+        if (payment == null) return null;
+        return resolvePreferredString(
+                payment.getUltimateCreditor(),
+                payment.getCreditor(),
+                Party::getName
+        );
+    }
+}
