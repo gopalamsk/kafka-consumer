@@ -1,86 +1,212 @@
-import org.mapstruct.Named;
-import java.util.List;
+package com.bns.fsl.emt.incoming.event.mapper;
+
+import com.bns.fsl.domain.emt.*;
+import com.bns.fsl.emt.incoming.event.exception.MappingException;
+import com.bns.fsl.schema.rtp.aci.model.XFRqst;
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.JAXBException;
+import jakarta.xml.bind.Marshaller;
+import java.io.StringWriter;
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.ParseException;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.mapstruct.*;
 
+@Mapper(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    unmappedTargetPolicy = ReportingPolicy.IGNORE,
+    builder = @Builder(disableBuilder = false),
+    nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.SET_TO_NULL)
 public interface BaseMapper {
 
-    /**
-     * Resolves a string field, preferring ultimate over normal.
-     * Checks for nulls and blank strings to ensure valid data is returned.
-     */
-    default <P> String resolvePreferredString(P ultimate, P normal, Function<P, String> extractor) {
-        return Optional.ofNullable(ultimate)
-                .map(extractor)
-                .filter(s -> !s.isBlank())
-                .orElseGet(() -> Optional.ofNullable(normal)
-                        .map(extractor)
-                        .filter(s -> !s.isBlank())
-                        .orElse(null));
-    }
+  // ========================================================================
+  // NEW: Composite & Concatenated Mappings
+  // ========================================================================
 
-    /**
-     * Safely retrieves the first address from a party's address list.
-     */
-    default Address firstAddress(Party p) {
-        return Optional.ofNullable(p)
-                .map(Party::getAddresses)
-                .filter(list -> !list.isEmpty())
-                .map(list -> list.get(0))
-                .orElse(null);
-    }
+  /**
+   * Resolves email from the first contact in the list.
+   * Path: Party -> List<Contact> (get 0) -> Email -> EmailId
+   */
+  @Named("getCreditorEmailId")
+  default String getCreditorEmailId(Payment payment) {
+    if (payment == null) return null;
+    return getRequiredField(
+        payment.getUltimateCreditor(),
+        payment.getCreditor(),
+        party -> Optional.ofNullable(firstContact(party))
+            .map(Contact::getEmail)
+            .map(Email::getEmailId)
+            .orElse(null));
+  }
 
-    /**
-     * Resolves an address field by applying the preferred string logic to the 
-     * first address found in either the ultimate or normal party.
-     */
-    default String resolveAddressField(Party ultimate, Party normal, Function<Address, String> fieldExtractor) {
-        return resolvePreferredString(
-                firstAddress(ultimate),
-                firstAddress(normal),
-                fieldExtractor
-        );
-    }
+  @Named("getDebtorAddressLine")
+  default String getDebtorAddressLine(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateDebtor(), 
+        payment.getDebtor(), 
+        addr -> joinFields(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
+  }
 
-    // --- MapStruct Named Mappings ---
+  @Named("getDebtorLocation")
+  default String getDebtorLocation(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateDebtor(), 
+        payment.getDebtor(), 
+        addr -> joinFields(" ", addr.getCity(), addr.getStateProvince(), addr.getPostalCode(), addr.getCountryCode()));
+  }
 
-    @Named("resolveDebtorCountryCode")
-    default String resolveDebtorCountryCode(Payment payment) {
-        if (payment == null) return null;
-        return resolveAddressField(
-                payment.getUltimateDebtor(),
-                payment.getDebtor(),
-                Address::getCountryCode
-        );
-    }
+  @Named("getCreditorAddressLine")
+  default String getCreditorAddressLine(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateCreditor(), 
+        payment.getCreditor(), 
+        addr -> joinFields(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
+  }
 
-    @Named("resolveCreditorCountryCode")
-    default String resolveCreditorCountryCode(Payment payment) {
-        if (payment == null) return null;
-        return resolveAddressField(
-                payment.getUltimateCreditor(),
-                payment.getCreditor(),
-                Address::getCountryCode
-        );
-    }
+  @Named("getCreditorLocation")
+  default String getCreditorLocation(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateCreditor(), 
+        payment.getCreditor(), 
+        addr -> joinFields(" ", addr.getCity(), addr.getStateProvince(), addr.getPostalCode(), addr.getCountryCode()));
+  }
 
-    @Named("resolveCreditorPostalCode")
-    default String resolveCreditorPostalCode(Payment payment) {
-        if (payment == null) return null;
-        return resolveAddressField(
-                payment.getUltimateCreditor(),
-                payment.getCreditor(),
-                Address::getPostalCode
-        );
-    }
+  // ========================================================================
+  // Existing Single-Field Mappings
+  // ========================================================================
 
-    @Named("resolveCreditorName")
-    default String resolveCreditorName(Payment payment) {
-        if (payment == null) return null;
-        return resolvePreferredString(
-                payment.getUltimateCreditor(),
-                payment.getCreditor(),
-                Party::getName
-        );
-    }
+  @Named("getDebtCountryCode")
+  default String getDebtCountryCode(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateDebtor(), payment.getDebtor(), Address::getCountryCode);
+  }
+
+  @Named("getCreditCountryCode")
+  default String getCreditCountryCode(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateCreditor(), payment.getCreditor(), Address::getCountryCode);
+  }
+
+  @Named("getCreditorName")
+  default String getCreditorName(Payment payment) {
+    if (payment == null) return null;
+    return getRequiredField(payment.getUltimateCreditor(), payment.getCreditor(), Party::getName);
+  }
+
+  @Named("getdebitorName")
+  default String getdebitorName(Payment payment) {
+    if (payment == null) return null;
+    return getRequiredField(payment.getUltimateDebtor(), payment.getDebtor(), Party::getName);
+  }
+
+  @Named("getdebitorPostalCode")
+  default String getdebitorPostalCode(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(payment.getUltimateDebtor(), payment.getDebtor(), Address::getPostalCode);
+  }
+
+  @Named("getInterntnlInd")
+  default String getInterntnlInd(String productCode) {
+    return "DOMESTIC".equals(productCode) ? "0" : "INTERNATIONAL".equals(productCode) ? "1" : "";
+  }
+
+  @Named("getFormattedTranAmount")
+  default BigDecimal getFormattedTranAmount(String amount) {
+    DecimalFormat df = new DecimalFormat("#,##0.00");
+    return Optional.ofNullable(amount)
+        .map(amt -> {
+              try {
+                Number parsedNumber = df.parse(amt);
+                String decimalString = df.format(parsedNumber).replace(",", "");
+                return new BigDecimal(decimalString);
+              } catch (ParseException e) {
+                return null;
+              }
+            })
+        .orElse(null);
+  }
+
+  @Named("getXMLStringFromObject")
+  static String getXMLStringFromObject(XFRqst acirqst) throws JAXBException {
+    JAXBContext jaxbContext = JAXBContext.newInstance(XFRqst.class);
+    Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+    StringWriter sw = new StringWriter();
+    jaxbMarshaller.marshal(acirqst, sw);
+    return sw.toString();
+  }
+
+  XFRqst mapACIRequest(FslIncomingPaymentEventsRequest fslIncomingPaymentEventsRequest)
+      throws MappingException;
+
+  // ========================================================================
+  // Core Helper Methods (The "Engine" of the Mapper)
+  // ========================================================================
+
+  /**
+   * Joins multiple strings with the specified delimiter.
+   * Skips nulls and blank strings.
+   * Returns null if the result is empty (triggering fallback logic).
+   */
+  default String joinFields(String delimiter, String... fields) {
+    if (fields == null) return null;
+    String result = Stream.of(fields)
+        .filter(s -> s != null && !s.isBlank())
+        .collect(Collectors.joining(delimiter));
+    return result.isBlank() ? null : result;
+  }
+
+  /**
+   * Resolves a field from an Address object, respecting the Ultimate > Normal priority.
+   */
+  default String resolveAddressField(
+      Party ultimate, Party normal, Function<Address, String> fieldExtractor) {
+    return getRequiredField(firstAddress(ultimate), firstAddress(normal), fieldExtractor);
+  }
+
+  /**
+   * Generic resolver: Tries the Ultimate object first; if the result is null/blank, tries Normal.
+   */
+  default <P> String getRequiredField(P ultimate, P normal, Function<P, String> extractor) {
+    return Optional.ofNullable(ultimate)
+        .map(extractor)
+        .filter(s -> !s.isBlank()) // Ensures we don't return " " from Ultimate
+        .orElseGet(
+            () ->
+                Optional.ofNullable(normal)
+                    .map(extractor)
+                    .filter(s -> !s.isBlank())
+                    .orElse(null));
+  }
+
+  /**
+   * Safely retrieves the first address from the list.
+   */
+  default Address firstAddress(Party p) {
+    return Optional.ofNullable(p)
+        .map(Party::getAddresses)
+        .filter(list -> !list.isEmpty())
+        .map(list -> list.get(0))
+        .orElse(null);
+  }
+
+  /**
+   * Safely retrieves the first contact from the list.
+   */
+  default Contact firstContact(Party p) {
+    return Optional.ofNullable(p)
+        .map(Party::getContacts)
+        .filter(list -> !list.isEmpty())
+        .map(list -> list.get(0))
+        .orElse(null);
+  }
 }
