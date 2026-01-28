@@ -20,12 +20,32 @@
           "currency": "CAD"
         },
         "debtor": {
-          "identification": "DEBTOR001",
-          "name": "John Doe"
+          "identification": "DEBT001",
+          "name": "Normal Debtor",
+          "addresses": [
+            { "countryCode": "US", "postalCode": "90210" }
+          ]
+        },
+        "ultimateDebtor": {
+          "identification": "ULT-DEBT001",
+          "name": "Ultimate Debtor",
+          "addresses": [
+            { "countryCode": "CA", "postalCode": "M5V 2N2" }
+          ]
         },
         "creditor": {
           "identification": "CRED001",
-          "name": "Jane Smith"
+          "name": "Normal Creditor",
+          "addresses": [
+            { "countryCode": "GB", "postalCode": "SW1A 1AA" }
+          ]
+        },
+        "ultimateCreditor": {
+          "identification": "ULT-CRED001",
+          "name": "Ultimate Creditor",
+          "addresses": [
+            { "countryCode": "  ", "postalCode": "" } 
+          ]
         }
       }
     }
