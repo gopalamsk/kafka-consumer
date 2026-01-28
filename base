@@ -32,45 +32,40 @@ public interface BaseMapper {
    * Path: Party -> List<Contact> (get 0) -> Email -> EmailId
 
 
-import java.util.function.Function;
-
-// ... inside BaseMapper ...
+// ========================================================================
+  // FRAUD SCORES (Compact Format)
+  // ========================================================================
 
   /**
-   * Method 1: The Main Entry Point
-   * Concise and readable. It just lists the fields you want to map.
+   * Maps SupplementaryScores to compact string: "5:BEHAVIORAL_OK; 3:DEVICE_TRUSTED"
    */
   @Named("getFraudScores")
   default String getFraudScores(SupplementaryScores scores) {
     if (scores == null) return null;
 
-    return joinFields(" | ",
-        formatScoring("additionalProp1", scores.getAdditionalProp1(), AdditionalProp1::getScore, AdditionalProp1::getReasonCodes),
-        formatScoring("additionalProp2", scores.getAdditionalProp2(), AdditionalProp2::getScore, AdditionalProp2::getReasonCodes),
-        formatScoring("additionalProp3", scores.getAdditionalProp3(), AdditionalProp3::getScore, AdditionalProp3::getReasonCodes)
+    // We join the results with "; " (Semicolon + Space)
+    return joinFields("; ",
+        formatCompactPair(scores.getAdditionalProp1(), AdditionalProp1::getScore, AdditionalProp1::getReasonCodes),
+        formatCompactPair(scores.getAdditionalProp2(), AdditionalProp2::getScore, AdditionalProp2::getReasonCodes),
+        formatCompactPair(scores.getAdditionalProp3(), AdditionalProp3::getScore, AdditionalProp3::getReasonCodes)
     );
   }
 
   /**
-   * Method 2: The "Do It All" Helper
-   * Handles null checks, extraction, and text formatting in one block.
+   * Helper: Extracts Score and Reason and joins them with ":"
+   * Returns null if the property object is null.
+   * If one field is missing, it returns just the available one (e.g., "5" or "REASON").
    */
-  default <T> String formatScoring(String label, T obj, Function<T, String> scoreFunc, Function<T, String> reasonFunc) {
-    // 1. Safety Check: If the property object (e.g. AdditionalProp1) is null, stop immediately.
+  default <T> String formatCompactPair(T obj, Function<T, String> scoreFunc, Function<T, String> reasonFunc) {
     if (obj == null) return null;
 
-    // 2. Extract Data
     String score = scoreFunc.apply(obj);
     String reason = reasonFunc.apply(obj);
 
-    // 3. Format Strings (Only add "Score:" prefix if value exists)
-    String scoreStr = (score != null && !score.isBlank()) ? "Score:" + score : null;
-    String reasonStr = (reason != null && !reason.isBlank()) ? "Reason:" + reason : null;
-
-    // 4. Join: If both score and reason are missing, this returns null (hiding the label).
-    if (scoreStr == null && reasonStr == null) return null;
-
-    return joinFields(" ", label, scoreStr, reasonStr);
+    // joinFields handles nulls automatically. 
+    // If both exist: "5:BEHAVIORAL_OK"
+    // If only score: "5"
+    return joinFields(":", score, reason);
   }
    */
   @Named("getCreditorEmailId")
