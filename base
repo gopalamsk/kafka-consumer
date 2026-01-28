@@ -43,6 +43,20 @@ public interface BaseMapper {
             .orElse(null));
   }
 
+@Named("getInstructionForCreditorAgent")
+  default String getInstructionForCreditorAgent(List<InstructionForCreditorAgent> sourceList) {
+    if (sourceList == null || sourceList.isEmpty()) {
+      return null;
+    }
+    // Stream the list, format each item, and join them with spaces
+    String result = sourceList.stream()
+        .map(src -> joinFields(" ", src.getCode(), src.getInstructionInformation()))
+        .filter(str -> str != null && !str.isBlank()) // Skip empty agents
+        .collect(Collectors.joining(" "));
+
+    return result.isBlank() ? null : result;
+  }
+
   @Named("getDebtorAddressLine")
   default String getDebtorAddressLine(Payment payment) {
     if (payment == null) return null;
