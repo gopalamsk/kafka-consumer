@@ -1,0 +1,130 @@
+package com.bns.fsl.emt.incoming.event.mapper;
+
+import static com.bns.fsl.emt.incoming.event.constants.EMTConstants.MSG_RCRD_SRCID;
+import static org.mapstruct.ReportingPolicy.IGNORE;
+
+import com.bns.fsl.domain.emt.FslIncomingPaymentEventsRequest;
+import com.bns.fsl.emt.incoming.event.constants.EMTConstants;
+import com.bns.fsl.emt.incoming.event.exception.MappingException;
+import com.bns.fsl.schema.rtp.aci.model.XFRqst;
+import org.mapstruct.Builder;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.NullValuePropertyMappingStrategy;
+
+@Mapper(
+    componentModel = "spring",
+    builder = @Builder(disableBuilder = true),
+    unmappedTargetPolicy = IGNORE,
+    nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.SET_TO_NULL)
+public interface RetailEventACIMapper extends BaseMapper, EMTConstants {
+
+  @Mapping(
+      target = "fundsTransferTranRqst.postDate",
+      source = "payload.paymentblock.payment.interbankSettlementDate",
+      dateFormat = "yyyy-MM-dd")
+  @Mapping(
+      target = "fundsTransferTranRqst.tranDateTime",
+      source = "payload.paymentblock.payment.creationDateTime")
+  @Mapping(
+      target = "fundsTransferTranRqst.tranAmt1",
+      source = "payload.paymentblock.payment.instructedAmount.amount")
+  @Mapping(
+      target = "fundsTransferTranRqst.custScore",
+      source = "payload.paymentblock.payment.supplementaryData.fraudResult.score")
+  @Mapping(
+      target = "fundsTransferTranRqst.acceptLanguage",
+      source = "payload.paymentblock.payment.language")
+  @Mapping(
+      target = "fundsTransferTranRqst.BIN",
+      source = "payload.paymentblock.payment.creditorAccount.cardNumber",
+      qualifiedByName = "first6Digits")
+  @Mapping(
+      target = "fundsTransferTranRqst.creditorAliasAccountIssuer",
+      source = "payload.paymentblock.payment.messageIdentification")
+  @Mapping(
+      target = "fundsTransferTranRqst.deviceName",
+      source = "payload.paymentblock.payment.supplementaryData.deviceDetails.deviceName")
+  @Mapping(
+      target = "fundsTransferTranRqst.endToEndIdentification",
+      source = "payload.paymentblock.payment.endToEndIdentification")
+  @Mapping(target = "fundsTransferTranRqst.FIID", source = "metadata.sourceId")
+  @Mapping(
+      target = "fundsTransferTranRqst.IBK1AcctIdent",
+      source = "payload.paymentblock.payment.creditor.contacts",
+      qualifiedByName = "firstPhoneNum")
+  @Mapping(target = "fundsTransferTranRqst.interntlInd", constant = DOMESTIC)
+  @Mapping(
+      target = "fundsTransferTranRqst.investigationText",
+      source = "payload.paymentblock.payment",
+      qualifiedByName = "appendErrorCodeDesc")
+  @Mapping(target = "fundsTransferTranRqst.msgType", constant = MSG_TYPE)
+  @Mapping(
+      target = "fundsTransferTranRqst.orgnlCrncyCode",
+      source = "payload.paymentblock.payment.instructedAmount.currency")
+  @Mapping(
+      target = "fundsTransferTranRqst.origWireInstName",
+      source = "payload.paymentblock.payment.debtorAgent.party.name")
+  @Mapping(
+      target = "fundsTransferTranRqst.OSName",
+      source = "payload.paymentblock.payment.supplementaryData.deviceDetails.deviceOs")
+  @Mapping(
+      target = "fundsTransferTranRqst.OSVersion",
+      source = "payload.paymentblock.payment.supplementaryData.deviceDetails.deviceOsVersion")
+  @Mapping(
+      target = "fundsTransferTranRqst.PAN",
+      source = "payload.paymentblock.payment.creditorAccount.cardNumber")
+  @Mapping(
+      target = "fundsTransferTranRqst.acctType",
+      source = "payload.paymentblock.payment.creditorAccount.type")
+  @Mapping(
+      target = "fundsTransferTranRqst.unstructuredRemittanceInfo1",
+      source = "payload.paymentblock.transferAuthentication.securityQuestion")
+  @Mapping(
+      target = "fundsTransferTranRqst.respCode",
+      source = "payload.paymentblock.payment.status",
+      qualifiedByName = "getRespCode")
+  @Mapping(
+      target = "fundsTransferTranRqst.scndryAcctType",
+      source = "payload.paymentblock.payment.debtorAccount.type")
+  @Mapping(target = "fundsTransferTranRqst.sqncNum", source = "payload.paymentblock.requestId")
+  @Mapping(
+      target = "fundsTransferTranRqst.sessionId",
+      source = "payload.paymentblock.payment.supplementaryData.deviceDetails.sessionId")
+  @Mapping(target = "fundsTransferTranRqst.status", source = "payload.paymentblock.payment.status")
+  @Mapping(
+      target = "fundsTransferTranRqst.TERMID",
+      source = "payload.paymentblock.payment.supplementaryData.deviceDetails.deviceId")
+  @Mapping(
+      target = "fundsTransferTranRqst.termPstlCode",
+      source = "payload.paymentblock.payment.supplementaryData.partyIpAddress")
+  @Mapping(
+      target = "fundsTransferTranRqst.tranCode",
+      source = "payload.paymentblock.payment.trancode")
+  @Mapping(
+      target = "fundsTransferTranRqst.tranRsnCode",
+      source = "payload.paymentblock.payment.errorCode")
+  @Mapping(target = "fundsTransferTranRqst.acctNum", source = "payload.paymentblock.custCisId")
+  @Mapping(
+      target = "fundsTransferTranRqst.ultimateCreditor",
+      source = "payload.paymentblock.payment.creditor.name")
+  @Mapping(
+      target = "fundsTransferTranRqst.ultimateDebtor",
+      source = "payload.paymentblock.payment.debtor.name")
+  //  @Mapping(target = "fundsTransferTranRqst.userAcctId", source =
+  // "payload.paymentblock.payment.debtor.contacts", qualifiedByName = "getEmailid")
+  @Mapping(
+      target = "fundsTransferTranRqst.wireId",
+      source = "payload.paymentblock.payment.messageIdentification")
+  @Mapping(target = "msgProp.msgRQUID", source = "payload.paymentblock.requestId")
+  @Mapping(
+      target = "msgProp.msgRfrnRQUID",
+      source = "payload.paymentblock.payment.messageIdentification")
+  @Mapping(
+      target = "fundsTransferTranRqst.XFwdedFor",
+      source = "payload.paymentblock.payment.categoryPurpose.code.externalCategoryPurposeCode")
+  @Mapping(target = "msgProp.msgDateTime", source = "metadata.originationTimestamp")
+  @Mapping(target = "msgProp.msgRcrdSrcId", constant = MSG_RCRD_SRCID)
+  XFRqst mapACIRequest(FslIncomingPaymentEventsRequest fslIncomingPaymentEventsRequest)
+      throws MappingException;
+}
