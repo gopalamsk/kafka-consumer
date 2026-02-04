@@ -10,6 +10,8 @@ import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.ParseException;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -23,144 +25,36 @@ import org.mapstruct.*;
     nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.SET_TO_NULL)
 public interface BaseMapper {
 
-  // ========================================================================
-  // NEW: Composite & Concatenated Mappings
-  // ========================================================================
-
-  /**
-   * Resolves email from the first contact in the list.
-   * Path: Party -> List<Contact> (get 0) -> Email -> EmailId
-
-
-// ========================================================================
-  // FRAUD SCORES (Compact Format)
-  // ========================================================================
-
-  /**
-   * Maps SupplementaryScores to compact string: "5:BEHAVIORAL_OK; 3:DEVICE_TRUSTED"
-   */
-  @Named("getFraudScores")
-  default String getFraudScores(SupplementaryScores scores) {
-    if (scores == null) return null;
-
-    // We join the results with "; " (Semicolon + Space)
-    return joinFields("; ",
-        formatCompactPair(scores.getAdditionalProp1(), AdditionalProp1::getScore, AdditionalProp1::getReasonCodes),
-        formatCompactPair(scores.getAdditionalProp2(), AdditionalProp2::getScore, AdditionalProp2::getReasonCodes),
-        formatCompactPair(scores.getAdditionalProp3(), AdditionalProp3::getScore, AdditionalProp3::getReasonCodes)
-    );
+  @Named("getXMLStringFromObject")
+  static String getXMLStringFromObject(XFRqst acirqst) throws JAXBException {
+    JAXBContext jaxbContext = JAXBContext.newInstance(XFRqst.class);
+    Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+    StringWriter sw = new StringWriter();
+    jaxbMarshaller.marshal(acirqst, sw);
+    return sw.toString();
   }
 
-  /**
-   * Helper: Extracts Score and Reason and joins them with ":"
-   * Returns null if the property object is null.
-   * If one field is missing, it returns just the available one (e.g., "5" or "REASON").
-   */
-  default <T> String formatCompactPair(T obj, Function<T, String> scoreFunc, Function<T, String> reasonFunc) {
-    if (obj == null) return null;
-
-    String score = scoreFunc.apply(obj);
-    String reason = reasonFunc.apply(obj);
-
-    // joinFields handles nulls automatically. 
-    // If both exist: "5:BEHAVIORAL_OK"
-    // If only score: "5"
-    return joinFields(":", score, reason);
-  }
-   */
-  @Named("getCreditorEmailId")
-  default String getCreditorEmailId(Payment payment) {
-    if (payment == null) return null;
-    return getRequiredField(
-        payment.getUltimateCreditor(),
-        payment.getCreditor(),
-        party -> Optional.ofNullable(firstContact(party))
-            .map(Contact::getEmail)
-            .map(Email::getEmailId)
-            .orElse(null));
+  @Named("getFormattedTranAmount")
+  default BigDecimal getFormattedTranAmount(String amount) {
+    DecimalFormat df = new DecimalFormat("#,##0.00");
+    return Optional.ofNullable(amount)
+        .map(
+            amt -> {
+              try {
+                Number parsedNumber = df.parse(amt);
+                String decimalString = df.format(parsedNumber).replace(",", "");
+                return new BigDecimal(decimalString);
+              } catch (ParseException e) {
+                return null;
+              }
+            })
+        .orElse(null);
   }
 
-@Named("getDebtorFullAddress")
-  default String getDebtorFullAddress(Payment payment) {
-    if (payment == null) return null;
-    return resolveAddressField(payment.getUltimateDebtor(), payment.getDebtor(), addr -> 
-        joinNonEmpty(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
+  @Named("getInterntnlInd")
+  default String getInterntnlInd(String productCode) {
+    return "DOMESTIC".equals(productCode) ? "0" : "INTERNATIONAL".equals(productCode) ? "1" : "";
   }
-
-  @Named("getDebtorCityStateZip")
-  default String getDebtorCityStateZip(Payment payment) {
-    if (payment == null) return null;
-    return resolveAddressField(payment.getUltimateDebtor(), payment.getDebtor(), addr -> 
-        joinNonEmpty(" ", addr.getCity(), addr.getStateProvince(), addr.getPostalCode(), addr.getCountryCode()));
-  }
-
-  @Named("getCreditorFullAddress")
-  default String getCreditorFullAddress(Payment payment) {
-    if (payment == null) return null;
-    return resolveAddressField(payment.getUltimateCreditor(), payment.getCreditor(), addr -> 
-        joinNonEmpty(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
-  }
-
-  @Named("getCreditorCityStateZip")
-  default String getCreditorCityStateZip(Payment payment) {
-    if (payment == null) return null;
-    return resolveAddressField(payment.getUltimateCreditor(), payment.getCreditor(), addr -> 
-        joinNonEmpty(" ", addr.getCity(), addr.getStateProvince(), addr.getPostalCode(), addr.getCountryCode()));
-  }
-
-@Named("getInstructionForCreditorAgent")
-  default String getInstructionForCreditorAgent(List<InstructionForCreditorAgent> sourceList) {
-    if (sourceList == null || sourceList.isEmpty()) {
-      return null;
-    }
-    // Stream the list, format each item, and join them with spaces
-    String result = sourceList.stream()
-        .map(src -> joinFields(" ", src.getCode(), src.getInstructionInformation()))
-        .filter(str -> str != null && !str.isBlank()) // Skip empty agents
-        .collect(Collectors.joining(" "));
-
-    return result.isBlank() ? null : result;
-  }
-
-  @Named("getDebtorAddressLine")
-  default String getDebtorAddressLine(Payment payment) {
-    if (payment == null) return null;
-    return resolveAddressField(
-        payment.getUltimateDebtor(), 
-        payment.getDebtor(), 
-        addr -> joinFields(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
-  }
-
-  @Named("getDebtorLocation")
-  default String getDebtorLocation(Payment payment) {
-    if (payment == null) return null;
-    return resolveAddressField(
-        payment.getUltimateDebtor(), 
-        payment.getDebtor(), 
-        addr -> joinFields(" ", addr.getCity(), addr.getStateProvince(), addr.getPostalCode(), addr.getCountryCode()));
-  }
-
-  @Named("getCreditorAddressLine")
-  default String getCreditorAddressLine(Payment payment) {
-    if (payment == null) return null;
-    return resolveAddressField(
-        payment.getUltimateCreditor(), 
-        payment.getCreditor(), 
-        addr -> joinFields(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
-  }
-
-  @Named("getCreditorLocation")
-  default String getCreditorLocation(Payment payment) {
-    if (payment == null) return null;
-    return resolveAddressField(
-        payment.getUltimateCreditor(), 
-        payment.getCreditor(), 
-        addr -> joinFields(" ", addr.getCity(), addr.getStateProvince(), addr.getPostalCode(), addr.getCountryCode()));
-  }
-
-  // ========================================================================
-  // Existing Single-Field Mappings
-  // ========================================================================
 
   @Named("getDebtCountryCode")
   default String getDebtCountryCode(Payment payment) {
@@ -188,88 +82,184 @@ public interface BaseMapper {
     return getRequiredField(payment.getUltimateDebtor(), payment.getDebtor(), Party::getName);
   }
 
-  @Named("getdebitorPostalCode")
-  default String getdebitorPostalCode(Payment payment) {
+  @Named("getDebitorPostalCode")
+  default String getDebitorPostalCode(Payment payment) {
     if (payment == null) return null;
-    return resolveAddressField(payment.getUltimateDebtor(), payment.getDebtor(), Address::getPostalCode);
+    return resolveAddressField(
+        payment.getUltimateDebtor(), payment.getDebtor(), Address::getPostalCode);
   }
 
-  @Named("getInterntnlInd")
-  default String getInterntnlInd(String productCode) {
-    return "DOMESTIC".equals(productCode) ? "0" : "INTERNATIONAL".equals(productCode) ? "1" : "";
+  @Named("getCreditorPostalCode")
+  default String getCreditorPostalCode(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateCreditor(), payment.getCreditor(), Address::getPostalCode);
   }
 
-  @Named("getFormattedTranAmount")
-  default BigDecimal getFormattedTranAmount(String amount) {
-    DecimalFormat df = new DecimalFormat("#,##0.00");
-    return Optional.ofNullable(amount)
-        .map(amt -> {
-              try {
-                Number parsedNumber = df.parse(amt);
-                String decimalString = df.format(parsedNumber).replace(",", "");
-                return new BigDecimal(decimalString);
-              } catch (ParseException e) {
-                return null;
-              }
-            })
+  @Named("getOrigWireAcctAdr1")
+  default String getOrigWireAcctAdr1(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateDebtor(),
+        payment.getDebtor(),
+        addr -> joinStrings(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
+  }
+
+  @Named("getOrigWireAcctAdr2")
+  default String getOrigWireAcctAdr2(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateDebtor(),
+        payment.getDebtor(),
+        addr ->
+            joinStrings(
+                " ",
+                addr.getCity(),
+                addr.getStateProvince(),
+                addr.getPostalCode(),
+                addr.getCountryCode()));
+  }
+
+  @Named("getbenWireAccthldrAdr1")
+  default String getbenWireAccthldrAdr1(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateCreditor(),
+        payment.getCreditor(),
+        addr -> joinStrings(" ", addr.getAdr1(), addr.getAdr2(), addr.getAdr3()));
+  }
+
+  @Named("appendErrorCodeDesc")
+  default String appendErrorCodeDesc(Payment payment) {
+    if (payment == null) return null;
+
+    String code = payment.getErrorCode();
+    String desc = payment.getErrorDesc();
+
+    return (code == null ? "" : code) + ";" + (desc == null ? "" : desc);
+  }
+
+  @Named("getbenWireAccthldrAdr2")
+  default String getbenWireAccthldrAdr2(Payment payment) {
+    if (payment == null) return null;
+    return resolveAddressField(
+        payment.getUltimateCreditor(),
+        payment.getCreditor(),
+        addr ->
+            joinStrings(
+                " ",
+                addr.getCity(),
+                addr.getStateProvince(),
+                addr.getPostalCode(),
+                addr.getCountryCode()));
+  }
+
+  @Named("getCreditorEmailid")
+  default String getCreditorEmailid(Payment payment) {
+    if (payment == null) return null;
+    return getRequiredField(
+        payment.getUltimateCreditor(),
+        payment.getCreditor(),
+        party ->
+            Optional.ofNullable(firstContact(party))
+                .map(Contact::getEmail)
+                .map(Email::getEmailId)
+                .orElse(null));
+  }
+
+  @Named("getRespCode")
+  default String getRespCode(String status) {
+    return "SUCCESS".equals(status) ? "01" : "FAILED".equals(status) ? "50" : null;
+  }
+
+  @Named("firstPhoneNum")
+  static String firstPhoneNum(List<Contact> contacts) {
+    return java.util.Optional.ofNullable(contacts).stream()
+        .flatMap(List::stream)
+        .filter(Objects::nonNull)
+        .map(Contact::getMobile)
+        .filter(Objects::nonNull)
+        .map(Phone::getPhoneNum)
+        .filter(s -> s != null && !s.isBlank())
+        .findFirst()
         .orElse(null);
   }
 
-  @Named("getXMLStringFromObject")
-  static String getXMLStringFromObject(XFRqst acirqst) throws JAXBException {
-    JAXBContext jaxbContext = JAXBContext.newInstance(XFRqst.class);
-    Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
-    StringWriter sw = new StringWriter();
-    jaxbMarshaller.marshal(acirqst, sw);
-    return sw.toString();
-  }
+  @Named("getInstructionForCreditorAgent")
+  default String getInstructionForCreditorAgent(List<InstructionForCreditorAgent> sourceList) {
+    if (sourceList == null || sourceList.isEmpty()) {
+      return null;
+    }
 
-  XFRqst mapACIRequest(FslIncomingPaymentEventsRequest fslIncomingPaymentEventsRequest)
-      throws MappingException;
+    String result =
+        sourceList.stream()
+            .map(src -> joinStrings(" ", src.getCode(), src.getInstructionInformation()))
+            .filter(str -> str != null && !str.isBlank()) // Skip empty agents
+            .collect(Collectors.joining(" "));
 
-  // ========================================================================
-  // Core Helper Methods (The "Engine" of the Mapper)
-  // ========================================================================
-
-  /**
-   * Joins multiple strings with the specified delimiter.
-   * Skips nulls and blank strings.
-   * Returns null if the result is empty (triggering fallback logic).
-   */
-  default String joinFields(String delimiter, String... fields) {
-    if (fields == null) return null;
-    String result = Stream.of(fields)
-        .filter(s -> s != null && !s.isBlank())
-        .collect(Collectors.joining(delimiter));
     return result.isBlank() ? null : result;
   }
 
-  /**
-   * Resolves a field from an Address object, respecting the Ultimate > Normal priority.
-   */
+  @Named("getFraudScores")
+  default String getFraudScores(SupplementaryScores scores) {
+    if (scores == null) return null;
+
+    return joinStrings(
+        "; ",
+        formatScoring(
+            scores.getAdditionalProp1(),
+            AdditionalProp1::getScore,
+            AdditionalProp1::getReasonCodes),
+        formatScoring(
+            scores.getAdditionalProp2(),
+            AdditionalProp2::getScore,
+            AdditionalProp2::getReasonCodes),
+        formatScoring(
+            scores.getAdditionalProp3(),
+            AdditionalProp3::getScore,
+            AdditionalProp3::getReasonCodes));
+  }
+
+  @Named("first6Digits")
+  public static String first6Digits(String cardNumber) {
+    if (cardNumber == null) return null;
+    String formatted = cardNumber.replaceAll("[^0-9]", ""); // removes extra soaces, dashes
+    return formatted.length() >= 6 ? formatted.substring(0, 6) : null;
+  }
+
+  default <T> String formatScoring(
+      T obj, Function<T, String> scoreFunc, Function<T, String> reasonFunc) {
+    if (obj == null) return null;
+
+    String score = scoreFunc.apply(obj);
+    String reason = reasonFunc.apply(obj);
+
+    return joinStrings(":", score, reason);
+  }
+
+  default String joinStrings(String delimiter, String... fields) {
+    if (fields == null) return null;
+    String result =
+        Stream.of(fields)
+            .filter(s -> s != null && !s.isBlank())
+            .collect(Collectors.joining(delimiter));
+    return result.isBlank() ? null : result;
+  }
+
   default String resolveAddressField(
       Party ultimate, Party normal, Function<Address, String> fieldExtractor) {
     return getRequiredField(firstAddress(ultimate), firstAddress(normal), fieldExtractor);
   }
 
-  /**
-   * Generic resolver: Tries the Ultimate object first; if the result is null/blank, tries Normal.
-   */
   default <P> String getRequiredField(P ultimate, P normal, Function<P, String> extractor) {
     return Optional.ofNullable(ultimate)
         .map(extractor)
-        .filter(s -> !s.isBlank()) // Ensures we don't return " " from Ultimate
+        .filter(s -> !s.isBlank())
         .orElseGet(
             () ->
-                Optional.ofNullable(normal)
-                    .map(extractor)
-                    .filter(s -> !s.isBlank())
-                    .orElse(null));
+                Optional.ofNullable(normal).map(extractor).filter(s -> !s.isBlank()).orElse(null));
   }
 
-  /**
-   * Safely retrieves the first address from the list.
-   */
   default Address firstAddress(Party p) {
     return Optional.ofNullable(p)
         .map(Party::getAddresses)
@@ -278,9 +268,6 @@ public interface BaseMapper {
         .orElse(null);
   }
 
-  /**
-   * Safely retrieves the first contact from the list.
-   */
   default Contact firstContact(Party p) {
     return Optional.ofNullable(p)
         .map(Party::getContacts)
@@ -288,4 +275,7 @@ public interface BaseMapper {
         .map(list -> list.get(0))
         .orElse(null);
   }
+
+  XFRqst mapACIRequest(FslIncomingPaymentEventsRequest fslIncomingPaymentEventsRequest)
+      throws MappingException;
 }
