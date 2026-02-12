@@ -1,0 +1,52 @@
+Scan the entire project.
+
+Identify:
+- Controllers
+- Services
+- Repositories
+- Kafka listeners
+- Spring Batch jobs
+- Utility classes
+
+For each layer:
+- Explain responsibilities
+- Identify external dependencies (DB, MQ, REST, Kafka)
+- Propose a unit testing strategy (mock vs integration).
+
+
+Generate JUnit 5 test cases following these rules:
+
+- Use JUnit 5
+- Use Mockito for mocking
+- Use @ExtendWith(MockitoExtension.class)
+- Follow AAA pattern
+- No Spring context loading for unit tests
+- 100% branch coverage for business logic
+- Test positive, negative, and edge cases
+- Verify interactions where appropriate
+- No testing of getters/setters
+- Use descriptive test method names
+
+Generate complete JUnit 5 test classes for all service classes.
+Mock repositories and external clients.
+Cover:
+- Success path
+- Exception path
+- Null inputs
+- Boundary conditions
+
+Generate unit tests for Kafka listeners.
+Mock downstream services.
+Verify:
+- Correct mapping of JSON
+- Error handling
+- Retry logic
+Review all generated tests.
+Identify weak assertions or meaningless tests.
+Improve them to validate real business
+behavior.
+
+Analyze uncovered branches in service layer.
+Generate additional test cases to improve branch coverage.
+
+
