@@ -1,0 +1,31 @@
+Act as a senior Spring Batch + distributed systems reviewer.
+
+Project context:
+- Spring Boot + Spring Batch application
+- Reads eligible cases from DB
+- Fetches questionnaire for each case (DB or service)
+- Generates PDF per case
+- Sends PDF to external Expo system via SOAP
+- Chunk-oriented processing
+- Retry/Skip logic configured
+- Restartable job with ExecutionContext
+
+Task:
+1. Scan the entire project.
+2. Identify all external integration points (DB, SOAP, file system, PDF generation, etc.).
+3. For each integration point:
+   - List realistic negative scenarios that can happen in cloud environments.
+   - Explain expected behavior (retry, skip, fail job, rollback, idempotent retry).
+   - Identify missing safeguards in current code.
+4. Suggest concrete test strategies:
+   - Unit tests (mocking)
+   - Integration tests (Testcontainers)
+   - Cloud failure simulation (timeouts, 5xx, partial writes)
+5. Verify restartability behavior:
+   - What happens if the pod dies mid-chunk?
+   - What happens if SOAP call succeeds but DB write fails?
+   - Are we protected from duplicate PDF sending?
+6. Output:
+   - A structured negative test matrix
+   - Missing resilience gaps
+   - Recommended improvements
